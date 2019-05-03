@@ -6,17 +6,12 @@ from datetime import datetime
 import requests
 import requests.exceptions
 
-class UrlManager:
-    persistence_file = "urlminder.sqlite"
+class WebChecker:
 
-    def __init__(self, userdir):
+    def __init__(self, dbfile):
         self.content = {}
 
-        self.userdir = pathlib.Path(userdir)
-        if not self.userdir.is_dir():
-            self.userdir.mkdir(parents=True, exist_ok=True)
-
-        self.dbfile = self.userdir / self.persistence_file
+        self.dbfile = pathlib.Path(dbfile)
         create_db = not self.dbfile.is_file()
         self.dbconn = sqlite3.connect(str(self.dbfile))
         if create_db:
@@ -39,21 +34,36 @@ class UrlManager:
     def check(self, url):
         try:
             ret = requests.get(url)
-            self.content[url] = content = ret.text.encode(ret.encoding)
+            content = ret.text.encode(ret.encoding)
             checksum = hashlib.md5(content).hexdigest()
             code = ret.status_code
         except requests.exceptions.RequestException:
-            self.content[url] = content = ""
+            content = ""
             checksum = ""
             code = -1
 
         csr = self.dbconn.cursor()
-        csr.execute("select checksum from urlvisited where url = ?", (url,) )
+        csr.execute("select checksum, lastchecked, laststatus from urlvisited where url = ?", (url,) )
         row = csr.fetchone()
         if not row:
             chks = None
+            #lastchecked = datetime.fromtimestamp(0)
+            lastchecked = None
+            laststatus = None
         else:
-            chks, = row
+            chks, lastchecked, laststatus = row[0], row[1], row[2]
+
+        time_now = datetime.now()
+        self.content[url] = {
+            "new_content": content,
+            "status": code,
+            "lastchecked": lastchecked or "Never",
+            "laststatus": laststatus or "--",
+            "lastchecksum": chks or "--",
+            "checksum": checksum,
+            "checked": str(time_now),
+            }
+
         changed = chks != checksum
         if chks:
             csr.execute("""update urlvisited set
@@ -61,12 +71,12 @@ class UrlManager:
                                 laststatus = ?,
                                 lastchecked = ?
                             where url = ?""",
-                        (checksum, datetime.now(), code, url))
+                        (checksum, time_now, code, url))
         else:
             csr.execute("""insert into urlvisited
                             (url, checksum, laststatus, lastchecked)
                             values (?, ?, ?, ?)""",
-                            (url, checksum, code, datetime.now()))
+                            (url, checksum, code, time_now))
         csr.close()
         self.dbconn.commit()
         return changed
