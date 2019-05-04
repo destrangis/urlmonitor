@@ -1,6 +1,20 @@
+import subprocess
 
 def action_object(name, arglst, url, content, variables, log):
-    log.info("{} not yet implemented.".format(name))
-    log.info("Would run script '{}'".format(arglst[0]))
-    log.info("\twith args: {}".format(", ".join(arglst[1:])))
-    return { name + "_return_code": 0, name + "_stdout": "" }
+    log.debug("{} running: '{}'".format(name, arglst[0]))
+    log.debug("\twith args: {}".format(", ".join(arglst[1:])))
+
+    try:
+        proc = subprocess.run(arglst, encoding="utf-8",
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+    except FileNotFoundError as excpt:
+        return { "return_code": 127,
+                 "stdout": "",
+                 "stderr": "",
+                 "error": str(excpt) }
+
+    return { "return_code": proc.returncode,
+             "stdout":      proc.stdout,
+             "stderr":      proc.stderr,
+             "error": "", }
