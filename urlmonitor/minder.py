@@ -1,3 +1,4 @@
+import os
 import sys
 import pathlib
 import shlex
@@ -6,8 +7,8 @@ import importlib.util
 
 import yaml
 
-from webchecker import WebChecker
-from nsdict import NSDict
+from .webchecker import WebChecker
+from .nsdict import NSDict
 
 URL_LIST_FILE = "urllist.yml"
 PERSISTENCE_FILE = "./persistence.sqlite"
@@ -135,14 +136,18 @@ class ActionManager:
         self.actionslst = []
         self.actions_configs = {}
         self.dict_vars = {}
-        self.config_file = None
+        self.config_file = config_file
         self.config = None
         self.actions = {}
-        if config_file:
-            self.configure(config_file)
+
+        self.configure(config_file)
 
 
     def load(self, config_file):
+        if not config_file:
+            self.config = {}
+            return
+
         self.config_file = pathlib.Path(config_file)
         if self.config_file.is_file():
             with self.config_file.open() as fd:
@@ -150,6 +155,7 @@ class ActionManager:
         else:
             self.log.error("Not a valid configuration file: '{}'"
                             .format(config_file))
+            self.config = {}
 
 
     def set_vars(self, vardict):
@@ -169,7 +175,7 @@ class ActionManager:
                             "of strings.\nFound: {}".format(actdir))
 
     def actions_config(self, actconfs):
-        self.actions_config.update(actconfs)
+        self.actions_configs.update(actconfs)
 
 
     def setup_actions(self, actlst):
@@ -199,58 +205,103 @@ class ActionManager:
         self.run("set_vars", self.dict_vars, "", "")
 
 
+    def load_actions_from_dir(self, directory):
+        """
+        Load all the actions in a given directory, by importing all
+        the files with a .py extension.
+        """
+        for f in os.scandir(directory):
+            if not f.name.endswith(".py"):
+                continue
+
+            if f.name.startswith("_") or f.name.startswith("test"):
+                continue
+
+            pf = pathlib.Path(f.path)
+            modname = pf.stem
+            self.log.debug("Installing action '{}'".format(modname))
+
+            spec = importlib.util.spec_from_file_location(modname, f.path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            self.actions[modname] = module.action_object
+
+
+    def install_action_object(self, act):
+        """
+        Install one action given by act, a mapping with at least
+        the entries "name" - name of the action,
+        and "module" - the Python file to import the action from.
+
+        The module must define and export a callable called "action_object"
+        The rest of the entries in act are action configuration entries.
+        At a later stage, the action_object.initialise() method is called
+        (if it exists) with the configuration dictionary.
+        """
+        try:
+            action_name = act.pop("name")
+        except KeyError:
+            self.log.error("Ignoring action with no name: {}"
+                            .format(act))
+            return
+
+        try:
+            action_path = pathlib.Path(act.pop("module"))
+        except KeyError:
+            self.log.error("Ignoring action '{}' with no module: {}"
+                            .format(action_name, act))
+            return
+
+        module_dir = action_path.parent
+        modname = action_path.stem
+
+        spec = importlib.util.spec_from_file_location(modname, str(action_path))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        self.actions[action_name] = module.action_object
+        self.actions_configs[action_name] = act
+
+
     def install_actions(self):
+        # install default actions
         self.actions["set_vars"] = action_set_global_vars
         self.actions["list_vars"] = action_list_vars
         self.actions["do_nothing"] = noaction
 
+        # install predefined actions
+        this_file = pathlib.Path(__file__)
+        predefined_actions_dir = this_file.parent / "actions"
+        self.log.debug("Loading predefined actions from '{}'"
+                        .format(predefined_actions_dir))
+        self.load_actions_from_dir(predefined_actions_dir)
+
         # install actions from action_dir sections
         for actdir in self.action_dirs:
             self.log.debug("Loading actions from: {}".format(actdir))
-
-            for f in os.scandir(actdir):
-                pf = pathlib.Path(f.path)
-                modname = pf.stem
-
-                spec = importlib.util.spec_from_file_location(modname, f.path)
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-
-                self.actions[modname] = module.action_object
+            self.load_actions_from_dir(actdir)
 
         # install actions from action sections
-        for act in self.actionslst:
-            try:
-                action_name = act.pop("name")
-            except KeyError:
-                self.log.error("Ignoring action with no name: {}"
-                                .format(act))
-                continue
-
-            try:
-                action_path = pathlib.Path(act.pop("module"))
-            except KeyError:
-                self.log.error("Ignoring action '{}' with no module: {}"
-                                .format(action_name, act))
-                continue
-
-            module_dir = action_path.parent
-            modname = action_path.stem
-
-            spec = importlib.util.spec_from_file_location(modname, str(action_path))
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-
-            self.actions[action_name] = module.action_object
-            self.actions_configs[action_name] = act
+        for act_obj in self.actionslst:
+            self.install_action_object(act_obj)
 
         # configure the actions
+        fails = []
         for actname, action_object in self.actions.items():
             self.log.debug("Configuring action '{}'".format(actname))
 
             conf_object = self.actions_configs.get(actname, {})
             if hasattr(action_object, "initialise"):
-                action_object.initialise(conf_object)
+                try:
+                    action_object.initialise(conf_object)
+                except Exception as xcp:
+                    self.log.error("Could not initialise action '{}'\n{}"
+                                    .format(actname, xcp))
+                    fails.append(actname)
+
+        for actname in fails:
+            self.actions[actname] = noaction
 
 
     def run(self, name, arglst, url, content, variables=None, log=None):
@@ -295,8 +346,8 @@ def noaction(name, arglst, url, content, variables, log):
 
 def parse_cli_args(argv):
     p = argparse.ArgumentParser()
-    p.add_argument("--config", "-c", metavar="FILE", default=CONFIG_FILE,
-            help="Configuration file. Default: " + CONFIG_FILE)
+    p.add_argument("--config", "-c", metavar="FILE", default=None,
+            help="Configuration file.")
     p.add_argument("--urlcheck", "-u", metavar="FILE", default=URL_LIST_FILE,
             help="Url check specification. Default: " + URL_LIST_FILE)
     p.add_argument("--persist-file", "-p", metavar="FILE", default=PERSISTENCE_FILE,

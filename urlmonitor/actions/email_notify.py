@@ -2,7 +2,7 @@ import platform
 import smtplib
 from email.message import EmailMessage
 
-import actionbase
+from urlmonitor.actionbase import Action
 
 _msg_pattern = """
 The Python UrlMonitor application running on {host} is happy to
@@ -24,7 +24,7 @@ The UrlMonitor Bot
 BTW Do not reply to this message -- it will not compute.
 """
 
-class _EmailAction(actionbase.Action):
+class _EmailAction(Action):
 
     check_cfg_vars = [ "smtp_server" ]
     default_vars = {}
