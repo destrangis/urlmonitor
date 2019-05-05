@@ -41,20 +41,22 @@ You can call the program with ``--help`` for the program options::
 
 
     $ urlmonitor --help
-    usage: urlmonitor [-h] [--config FILE] [--urlcheck FILE] [--persist-file FILE]
+    usage: urlmonitor [-h] [--config FILE] [--persist-file FILE]
+                      [ymlfile [ymlfile ...]]
+
+    positional arguments:
+      ymlfile               Url check specification.
 
     optional arguments:
-       -h, --help            show this help message and exit
-       --config FILE, -c FILE
-                             Configuration file.
-       --urlcheck FILE, -u FILE
-                             Url check specification. Default: urllist.yml
-       --persist-file FILE, -p FILE
-                             Persistence file to store URL status. Default
-                             ./persistence.sqlite
+      -h, --help            show this help message and exit
+      --config FILE, -c FILE
+                            Configuration file.
+      --persist-file FILE, -p FILE
+                            Persistence file to store URL status. Default
+                            ./persistence.sqlite
 
 
-* The ``--urlcheck`` file is contains the URLs to check, as discussed above.
+* The ``yml`` file(s) contain the URLs to check, as discussed above.
 * The ``--persist-file`` is a database that will be created in order to track whether the URLs have changed and when.
 * The ``--config`` file is a YAML file that specifies where the options are located. It is discussed on the next section.
 
