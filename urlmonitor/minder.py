@@ -312,7 +312,11 @@ class ActionManager:
         if log is None:
             log = self.log
 
-        action = self.actions.get(name, noaction)
+        action = self.actions.get(name)
+        if action is None:
+            log.error("Action: '{}' is undefined.".format(name))
+            action = noaction
+
         return action(name, arglst, url, content, variables, log)
 
 
