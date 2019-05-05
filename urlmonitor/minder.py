@@ -10,7 +10,6 @@ import yaml
 from .webchecker import WebChecker
 from .nsdict import NSDict
 
-URL_LIST_FILE = "urllist.yml"
 PERSISTENCE_FILE = "./persistence.sqlite"
 CONFIG_FILE = "./minderconfig.yml"
 
@@ -348,11 +347,10 @@ def parse_cli_args(argv):
     p = argparse.ArgumentParser()
     p.add_argument("--config", "-c", metavar="FILE", default=None,
             help="Configuration file.")
-    p.add_argument("--urlcheck", "-u", metavar="FILE", default=URL_LIST_FILE,
-            help="Url check specification. Default: " + URL_LIST_FILE)
     p.add_argument("--persist-file", "-p", metavar="FILE", default=PERSISTENCE_FILE,
             help="Persistence file to store URL status. Default " +
                     PERSISTENCE_FILE)
+    p.add_argument("ymlfile", nargs="*", help="Url check specification.")
     return p.parse_args(argv)
 
 
@@ -364,17 +362,20 @@ def main(argv=None):
 
     log = DummyLog()
 
-    urls = pathlib.Path(opts.urlcheck)
-    if urls.is_file():
-        with urls.open() as fd:
-            to_check = yaml.load(fd.read(), Loader=yaml.Loader)
-    else:
-        log.error("Cannot find '{}'".format(opts.urlcheck))
-
     actionmgr = ActionManager(opts.config, log)
     webcheck = WebChecker(opts.persist_file)
 
-    actionmgr.process(to_check, webcheck)
+    for f in opts.ymlfile:
+        ymlfile = pathlib.Path(f)
+        if ymlfile.is_file():
+            with ymlfile.open() as fd:
+                to_check = yaml.load(fd.read(), Loader=yaml.Loader)
+        else:
+            log.error("Cannot find '{}'".format(f))
+
+        actionmgr.process(to_check, webcheck)
+
+    return 0
 
 
 if __name__ == "__main__":
