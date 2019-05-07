@@ -1,7 +1,6 @@
 from setuptools import setup, find_packages
 
-with open("VERSION") as vf:
-    VERSION = vf.read().strip()
+from urlmonitor import VERSION
 
 with open("README.md") as rdf:
     long_descr = rdf.read()
