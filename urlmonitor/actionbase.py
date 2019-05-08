@@ -13,7 +13,7 @@ class Action:
 
         missing = []
         for vname in self.check_cfg_vars:
-            if not getattr(self, vname):
+            if not getattr(self, vname, None):
                 defval = self.default_vars.get(vname)
                 if defval is not None:
                     setattr(self, vname, defval)
