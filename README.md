@@ -122,18 +122,174 @@ An example of the configuration follows::
     # always a list containing mappings of actions and configuration values
 
                 # should always have a name and module
-    - name: send_by_email:
+    - name: add_to_database
       module: /path/to/module.py
                 # ad_hoc configuration parameters, defined and expected by
                 # each particular action
-      smtpserver: mail.pepe.com
-      port: 25
-      SSL: yes
+      dbhost: host1.mynetwork
+      dbname: documents
+      dbuser: albert
+      dbpassword: hello0011
 
     - name: another_action:
       module: /the/path/to/another_action.py
       foo: bar
 ~~~
+
+### Predefined Actions
+
+The following actions are available out of the box:
+
+#### set_vars
+Set global variables. The variables defined using this action are global and can be used by all the URL objects and their actions.
+
+Example:
+```yaml
+set_vars:
+   value_1: 34
+   list_var:
+      - item 1
+      - item 2
+      - another item
+```
+
+#### list_vars
+This action lists all the variables and their values to the log. The log level must be debug.
+
+#### no_action
+This is a dummy action. It does nothing.
+
+#### re_match
+Search the content of the URL using one or more regular expressions passed as arguments. The regular expressions are applied using ``re.MULTILINE`` (see [Python's ``re`` module documentation](https://docs.python.org/3/library/re.html#re.MULTILINE) ) i.e. '^' matches the beginning of every line and '$' matches every end of line.
+
+As a result, it creates two variables:
+
+* ``re_match``: A list of all the group matches in the first regular expression.
+* ``re_match_all``: A list containing the list of all group matches of all the regular expressions in the argument list, in the same order as they appear.
+
+Example:
+
+```yaml
+  - name: Get amount and code
+    url: http://www.interesting.com/amounts_codes/
+    actions:
+       - re_match:
+             - 'The amount is:\s*([0-9]+)'
+             - 'Code\s*(\w+)'
+       - set_vars:
+            amount: {re_match[1]}
+            code: {re_match_all[1][1]}
+```
+
+#### email_notify
+Send an email with a notification of the URL change to the recipient email addresses specified in the argument list.
+
+Example:
+```yaml
+- name: Check for new versions of my favourite software
+  url: https://www.coolproject.org/download/files
+  actions:
+    - email_notify:
+        - joe@domain.com
+        - jill@somewhere.else.com
+```
+
+Before this action can be used it must be configured in the yaml configuration file with the following parameters:
+
+Name            | Value                   | Default value
+----------------|-------------------------|-------------
+smtp_server     | server name             |
+from_address    | email address           | urlmonitor@hostname
+smtp_port       | port number             | 25 for SMTP, 587 for SSL
+smtp_encryption | SSL or STARTTLS         | empty, no encryption
+smtp_user       | username                | empty, no smtp authentication
+smtp_password   | password base64 encoded |
+
+Configuration example:
+
+```yaml
+- actions_config:
+     email_notify:
+         smtp_server: mailhost.server.com
+         from_address: urlbot@mydomain.com
+         smtp_encryption: STARTTLS
+         smtp_port: 465
+         smtp_user: phil
+         smtp_password: aGVsbG8wMDExMjI=
+```
+
+#### run_script
+This action runs a program whose command line is its argument list.
+
+Example:
+
+```yaml
+- name: Download the new file
+  url: https://www.filesite.net/targetfiles.html
+  actions:
+      - re_match: '<a href=\"(.*)\">The file'
+      - run_script: wget {re_match[1]}
+```
+This action sets the following variables:
+
+Variable    | Value
+------------|-----------------------------------
+return_code | The exit code of the program
+error       | The error encountered, if any
+stdout      | Whatever the program has written to its standard output
+stderr      | Whatever the program has written to its error output
+
+
+### Writing Custom Actions
+You can write a custom action easily. You just need to write a Python module that exports a callable called ``action_object`` with the following signature:
+
+```python
+def action_object(name, arglst, url, content, variables, log):
+    pass
+```
+
+Where the arguments are:
+
+Argument  | Description
+----------|--------
+name      | The action name
+arglst    | The list of arguments.
+url       | The url that changed
+content   | The content (possibly HTML) of the url
+variables | A mapping containing the variables and their values
+log       | A logging object
+
+If the arguments in ``arglst`` will be expanded by the calling routine and should contain the final value.
+
+If your action requires configuration parameters, you can create a class that has a ``__call__`` method and instantiate into ``action_object``. At configuration time, the program will call the ``initialise`` method with a dictionary containing the configuration parameters as argument.
+
+In order to simplify the process, the module ``actionbase`` provides the class ``Action`` from which your action can inherit. This already provides an ``initialise`` method which will install the configuration parameters, which you can access as instance attributes of ``action_object``. In addition, you should provide a list of expected parameters and a default value for those that can have one in the class variables ``check_cfg_vars`` and ``default_vars``. An exception is raised if a parameter that has been specified in ``check_cfg_vars`` is not found and there is no default value.
+
+As an example, you can check the code for the ``email_notify`` action.
+
+```python
+from urlmonitor.actionbase import Action
+
+class _EmailAction(Action):
+
+    check_cfg_vars = [ "smtp_server", "from_address", "smtp_encryption",
+            "smtp_user", "smtp_password", "smtp_port"]
+    default_vars = {
+        "from_address": "urlmonitor@{}".format(_NODE),
+        "smtp_encryption": None,
+        "smtp_user": None,
+        "smtp_password": "",
+        "smtp_port": 0,
+        }
+
+    ...
+
+    def __call__(self, name, arglst, url, content, variables, log):
+        ...
+        
+action_object = _EmailAction()
+```
+
 
 ### License
 
