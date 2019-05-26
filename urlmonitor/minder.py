@@ -4,6 +4,8 @@ import pathlib
 import shlex
 import argparse
 import importlib.util
+import logging
+import logging.config
 
 import yaml
 
@@ -12,6 +14,7 @@ from .nsdict import NSDict
 
 PERSISTENCE_FILE = "./persistence.sqlite"
 CONFIG_FILE = "./minderconfig.yml"
+LOGGER = "URLMONITOR"
 
 class DummyLog:
 
@@ -21,23 +24,26 @@ class DummyLog:
         else:
             self.fd = outfile
 
-    def log(self, severity, msg):
+    def log(self, severity, msg, **kwargs):
         print("{}: {}".format(severity, msg), file=self.fd)
+        if kwargs.get("exc_info", False):
+            t, err, tb = sys.exc_info()
+            print("\t{}: {}".format(t.__name__, err), file=self.fd)
 
-    def info(self, msg):
-        self.log("INFO", msg)
+    def info(self, msg, **kwargs):
+        self.log("INFO", msg, **kwargs)
 
-    def warning(self, msg):
-        self.log("WARNING", msg)
+    def warning(self, msg, **kwargs):
+        self.log("WARNING", msg, **kwargs)
 
-    def error(self, msg):
-        self.log("ERROR", msg)
+    def error(self, msg, **kwargs):
+        self.log("ERROR", msg, **kwargs)
 
-    def debug(self, msg):
-        self.log("DEBUG", msg)
+    def debug(self, msg, **kwargs):
+        self.log("DEBUG", msg, **kwargs)
 
-    def critical(self, msg):
-        self.log("CRITICAL", msg)
+    def critical(self, msg, **kwargs):
+        self.log("CRITICAL", msg, **kwargs)
 
 
 class Monitor:
@@ -125,7 +131,7 @@ class Monitor:
 
 class ActionManager:
 
-    def __init__(self, config_file="", log=None):
+    def __init__(self, config, log=None):
         self.variables = NSDict(with_environment=True)
         if log == None:
             self.log = DummyLog()
@@ -135,26 +141,10 @@ class ActionManager:
         self.actionslst = []
         self.actions_configs = {}
         self.dict_vars = {}
-        self.config_file = config_file
-        self.config = None
+        self.config = config
         self.actions = {}
 
-        self.configure(config_file)
-
-
-    def load(self, config_file):
-        if not config_file:
-            self.config = {}
-            return
-
-        self.config_file = pathlib.Path(config_file)
-        if self.config_file.is_file():
-            with self.config_file.open() as fd:
-                self.config = yaml.load(fd.read(), Loader=yaml.Loader)
-        else:
-            self.log.error("Not a valid configuration file: '{}'"
-                            .format(config_file))
-            self.config = {}
+        self.configure()
 
 
     def set_vars(self, vardict):
@@ -181,22 +171,21 @@ class ActionManager:
         self.actionslst += actlst
 
 
-    def configure(self, config_file):
+    def configure(self):
         call_config = {
             "set_vars": self.set_vars,
             "action_dir": self.action_dir,
             "actions_config": self.actions_config,
             "actions": self.setup_actions,
+            "logging_config": lambda x: None,
         }
 
-        self.load(config_file)
-        for section_object in self.config:
-            for section, value in section_object.items():
-                f = call_config.get(section)
-                if f:
-                    f(value)
-                else:
-                    self.log.warning("Unrecognised section '{}'".format(section))
+        for section, value in self.config.items():
+            f = call_config.get(section)
+            if f:
+                f(value)
+            else:
+                self.log.warning("Unrecognised section '{}'".format(section))
 
         self.install_actions()
 
@@ -347,6 +336,46 @@ def noaction(name, arglst, url, content, variables, log):
     return {}
 
 
+
+def load_config(config_file):
+    config = {}
+    if not config_file:
+        return config
+
+    config_file = pathlib.Path(config_file)
+    if config_file.is_file():
+        with config_file.open() as fd:
+            config = yaml.load(fd.read(), Loader=yaml.Loader)
+    else:
+        print("Not a valid configuration file: '{}'"
+                        .format(config_file), file=sys.stderr)
+        config = {}
+    return config
+
+
+def logging_setup(config):
+    cfg = {
+        "version": 1,
+        "loggers": {
+            "URLMONITOR": {
+                "level": "DEBUG",
+                },
+            },
+    }
+    cfg.update(config.get("logging_config", {}))
+
+    try:
+        logging.config.dictConfig(cfg)
+    except (ValueError, TypeError, AttributeError, ImportError):
+        log = DummyLog()
+        log.error("Could not configure logging.", exc_info=True)
+        return log
+
+    log = logging.getLogger(LOGGER)
+    return log
+
+
+
 def parse_cli_args(argv):
     p = argparse.ArgumentParser()
     p.add_argument("--config", "-c", metavar="FILE", default=None,
@@ -363,10 +392,11 @@ def main(argv=None):
         argv = sys.argv[1:]
 
     opts = parse_cli_args(argv)
+    config = load_config(opts.config)
 
-    log = DummyLog()
+    log = logging_setup(config)
 
-    actionmgr = ActionManager(opts.config, log)
+    actionmgr = ActionManager(config, log)
     webcheck = WebChecker(opts.persist_file)
 
     for f in opts.ymlfile:

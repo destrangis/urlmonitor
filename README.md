@@ -62,12 +62,13 @@ You can call the program with ``--help`` for the program options::
 
 ### Configuration
 
-UrlMonitor is configured using a YAML file containing a LIST of sections where you can specify:
+UrlMonitor is configured using a YAML file containing an OBJECT with the different sections where you can specify:
 
 * Global variables (``set_vars``): available to all the actions.
 * Actions (``actions``): Each additional action individually, specifying its name, the Python module where it is located, and perhaps a set of configuration parameters.
 * Action directories (``action_dir``): Specify a directory containing Python files. Each Python file contains an action named like the file.
 * Action configurations (``action_config``): Contains an OBJECT whose entries are the names of the actions and the values are the configuration parameters for that action. Any action can be configured in this way, whether it has been specified using ``action`` or an ``action_dir``. Some predefined actions also need to be configured this way, for example the ``email_notify`` predefined action needs the parameter ``smtp_server`` to be set.
+* Logging configuration (``logging_config``): Contains the settings needed to call `logging.config.dictConfig()` as per the [Python standard library documentation](https://docs.python.org/3/library/logging.config.html#logging-config-dictschema). The logger name that will be used is `URLMONITOR`. If this section is not present, sensible defaults will be used.
 
 An example of the configuration follows::
 
@@ -75,7 +76,7 @@ An example of the configuration follows::
 ---
 
 # define global variables for all the actions
-- set_vars:
+set_vars:
     var1: 5.4
     var2:
         - list
@@ -91,9 +92,9 @@ An example of the configuration follows::
 #   and will be initialised with the objects in its entry in an
 #   an 'actions_config' section
 #
-- action_dir: /path/to/dir1
+action_dir: /path/to/dir1
 
-- action_dir:
+action_dir:
     # specify a list of paths
     - /path/to/dir2
     - /another/path/dir3
@@ -106,7 +107,7 @@ An example of the configuration follows::
 # The actions will be called (or not) at runtime with the url that's changed,
 # the contents of that url, and the variables with their values at that point.
 
-- actions_config:
+actions_config:
         # configuration objects for actions defined on action_dir
         # as opposed to actions defined in actions:
         action_in_dir1:
@@ -118,7 +119,7 @@ An example of the configuration follows::
             another_parameter: another_value
 
 
-- actions:
+actions:
     # always a list containing mappings of actions and configuration values
 
                 # should always have a name and module
@@ -134,6 +135,19 @@ An example of the configuration follows::
     - name: another_action:
       module: /the/path/to/another_action.py
       foo: bar
+
+logging_config:
+     # the following is passed directly to logging.config.dictConfig()
+     loggers:
+        URLMONITOR:
+            level: DEBUG
+            handlers:
+                - console
+     handlers:
+         console:
+             class: logging.StreamHandler
+             stream: ext://sys.stdout
+             level: DEBUG
 ~~~
 
 ### Predefined Actions
