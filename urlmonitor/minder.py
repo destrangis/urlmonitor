@@ -357,7 +357,7 @@ def logging_setup(config):
     cfg = {
         "version": 1,
         "loggers": {
-            "URLMONITOR": {
+            LOGGER: {
                 "level": "DEBUG",
                 },
             },
