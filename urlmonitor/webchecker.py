@@ -71,7 +71,7 @@ class WebChecker:
                                 laststatus = ?,
                                 lastchecked = ?
                             where url = ?""",
-                        (checksum, time_now, code, url))
+                        (checksum, code, time_now, url))
         else:
             csr.execute("""insert into urlvisited
                             (url, checksum, laststatus, lastchecked)
