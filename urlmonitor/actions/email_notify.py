@@ -33,8 +33,8 @@ class _EmailAction(Action):
             "smtp_user", "smtp_password", "smtp_port"]
     default_vars = {
         "from_address": "urlmonitor@{}".format(_NODE),
-        "smtp_encryption": None,
-        "smtp_user": None,
+        "smtp_encryption": "",
+        "smtp_user": "",
         "smtp_password": "",
         "smtp_port": 0,
         }
@@ -66,7 +66,7 @@ class _EmailAction(Action):
             if self.smtp_encryption == "STARTTLS":
                 srv.starttls()
 
-            if self.smtp_user is not None:
+            if self.smtp_user:
                 passwd = base64.b64decode(self.smtp_password).decode()
                 srv.login(self.smtp_user, passwd)
             srv.send_message(msg)

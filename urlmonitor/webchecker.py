@@ -32,15 +32,16 @@ class WebChecker:
 
 
     def check(self, url):
+        code = -1
         try:
             ret = requests.get(url)
+            code = ret.status_code
+            ret.raise_for_status()
             content = ret.text.encode(ret.encoding)
             checksum = hashlib.md5(content).hexdigest()
-            code = ret.status_code
         except requests.exceptions.RequestException:
             content = ""
             checksum = ""
-            code = -1
 
         csr = self.dbconn.cursor()
         csr.execute("select checksum, lastchecked, laststatus from urlvisited where url = ?", (url,) )
