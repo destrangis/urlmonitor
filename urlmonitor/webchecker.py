@@ -6,8 +6,8 @@ from datetime import datetime
 import requests
 import requests.exceptions
 
-class WebChecker:
 
+class WebChecker:
     def __init__(self, dbfile):
         self.content = {}
 
@@ -17,19 +17,19 @@ class WebChecker:
         if create_db:
             self.create_db()
 
-
     def create_db(self):
         csr = self.dbconn.cursor()
-        csr.execute("""create table urlvisited
+        csr.execute(
+            """create table urlvisited
                             (id integer primary key autoincrement,
                              url varchar(256),
                              checksum varchar(32),
                              laststatus int,
-                             lastchecked datetime)""")
+                             lastchecked datetime)"""
+        )
         csr.execute("""create index urlindex on urlvisited (url)""")
         csr.close()
         self.dbconn.commit()
-
 
     def check(self, url):
         code = -1
@@ -44,11 +44,14 @@ class WebChecker:
             checksum = ""
 
         csr = self.dbconn.cursor()
-        csr.execute("select checksum, lastchecked, laststatus from urlvisited where url = ?", (url,) )
+        csr.execute(
+            "select checksum, lastchecked, laststatus from urlvisited where url = ?",
+            (url,),
+        )
         row = csr.fetchone()
         if not row:
             chks = None
-            #lastchecked = datetime.fromtimestamp(0)
+            # lastchecked = datetime.fromtimestamp(0)
             lastchecked = None
             laststatus = None
         else:
@@ -63,21 +66,25 @@ class WebChecker:
             "lastchecksum": chks or "--",
             "checksum": checksum,
             "checked": str(time_now),
-            }
+        }
 
         changed = chks != checksum
         if chks:
-            csr.execute("""update urlvisited set
+            csr.execute(
+                """update urlvisited set
                                 checksum = ?,
                                 laststatus = ?,
                                 lastchecked = ?
                             where url = ?""",
-                        (checksum, code, time_now, url))
+                (checksum, code, time_now, url),
+            )
         else:
-            csr.execute("""insert into urlvisited
+            csr.execute(
+                """insert into urlvisited
                             (url, checksum, laststatus, lastchecked)
                             values (?, ?, ?, ?)""",
-                            (url, checksum, code, time_now))
+                (url, checksum, code, time_now),
+            )
         csr.close()
         self.dbconn.commit()
         return changed

@@ -1,6 +1,6 @@
-
 class ActionError(Exception):
     pass
+
 
 class Action:
 
@@ -21,12 +21,17 @@ class Action:
                     missing.append(vname)
 
         if missing:
-            raise ActionError("Action {} - Missing config vars: {}"
-                        .format(__name__,  ", ".join(missing)))
+            raise ActionError(
+                "Action {} - Missing config vars: {}".format(
+                    __name__, ", ".join(missing)
+                )
+            )
 
     initialize = initialise
 
-
     def __call__(self, name, arglst, url, content, variables, log):
-        raise ActionError("__call__() method in '{}' must be overridden"
-                    .format(self.__class__.__name__))
+        raise ActionError(
+            "__call__() method in '{}' must be overridden".format(
+                self.__class__.__name__
+            )
+        )

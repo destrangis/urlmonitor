@@ -9,6 +9,7 @@ import logging.config
 
 import yaml
 
+from . import VERSION
 from .webchecker import WebChecker
 from .nsdict import NSDict
 
@@ -16,8 +17,8 @@ PERSISTENCE_FILE = "./persistence.sqlite"
 CONFIG_FILE = "./minderconfig.yml"
 LOGGER = "URLMONITOR"
 
-class DummyLog:
 
+class DummyLog:
     def __init__(self, outfile=sys.stderr):
         if isinstance(outfile, str):
             self.fd = open(outfile, "a")
@@ -73,26 +74,27 @@ class Monitor:
         elif isinstance(action_lst, list):
             for act in action_lst:
                 if not isinstance(act, dict):
-                    self.log.error("Expected dict for action, got {}"
-                                .format(act))
+                    self.log.error("Expected dict for action, got {}".format(act))
                     continue
 
                 for name, val in act.items():
                     if isinstance(val, list):
-                        actwords = [ name ] + val
+                        actwords = [name] + val
                     else:
                         try:
                             actwords = [name] + shlex.split(val)
                         except Exception as xcp:
-                            self.log.error("Bad action {}: {} - {}"
-                                    .format(name, val, xcp))
+                            self.log.error(
+                                "Bad action {}: {} - {}".format(name, val, xcp)
+                            )
                             continue
                     self.actions.append(actwords)
 
         else:
-            self.log.error("Actions must be a string or a list of objects\n"
-                      "Got: '{}'".format(action_lst))
-
+            self.log.error(
+                "Actions must be a string or a list of objects\n"
+                "Got: '{}'".format(action_lst)
+            )
 
     def run(self, webchecker, actionmgr):
         changed = True
@@ -115,22 +117,17 @@ class Monitor:
 
         for act in self.actions:
             action_name = act[0]
-            action_args = [ arg.format(**self.variables)
-                                for arg in act[1:] ]
+            action_args = [arg.format(**self.variables) for arg in act[1:]]
             self.log.debug("{} - Running action '{}'".format(self.url, action_name))
             self.log.debug("Args: {}".format(action_args))
-            result_vars = actionmgr.run(action_name,
-                                        action_args,
-                                        self.url,
-                                        content,
-                                        self.variables,
-                                        self.log)
+            result_vars = actionmgr.run(
+                action_name, action_args, self.url, content, self.variables, self.log
+            )
             if result_vars:
                 self.variables.update(result_vars)
 
 
 class ActionManager:
-
     def __init__(self, config, log=None):
         self.variables = NSDict(with_environment=True)
         if log == None:
@@ -146,13 +143,11 @@ class ActionManager:
 
         self.configure()
 
-
     def set_vars(self, vardict):
         """
         Store the contents of a set_vars section during configuration
         """
         self.dict_vars.update(vardict)
-
 
     def action_dir(self, actdir):
         if isinstance(actdir, str):
@@ -160,16 +155,16 @@ class ActionManager:
         elif isinstance(actdir, list):
             self.action_dirs += actdir
         else:
-            self.log.error("action_dir can contain only string or list "
-                            "of strings.\nFound: {}".format(actdir))
+            self.log.error(
+                "action_dir can contain only string or list "
+                "of strings.\nFound: {}".format(actdir)
+            )
 
     def actions_config(self, actconfs):
         self.actions_configs.update(actconfs)
 
-
     def setup_actions(self, actlst):
         self.actionslst += actlst
-
 
     def configure(self):
         call_config = {
@@ -191,7 +186,6 @@ class ActionManager:
 
         # set the variables by running the set_vars action
         self.run("set_vars", self.dict_vars, "", "")
-
 
     def load_actions_from_dir(self, directory):
         """
@@ -215,7 +209,6 @@ class ActionManager:
 
             self.actions[modname] = module.action_object
 
-
     def install_action_object(self, act):
         """
         Install one action given by act, a mapping with at least
@@ -230,15 +223,15 @@ class ActionManager:
         try:
             action_name = act.pop("name")
         except KeyError:
-            self.log.error("Ignoring action with no name: {}"
-                            .format(act))
+            self.log.error("Ignoring action with no name: {}".format(act))
             return
 
         try:
             action_path = pathlib.Path(act.pop("module"))
         except KeyError:
-            self.log.error("Ignoring action '{}' with no module: {}"
-                            .format(action_name, act))
+            self.log.error(
+                "Ignoring action '{}' with no module: {}".format(action_name, act)
+            )
             return
 
         module_dir = action_path.parent
@@ -251,7 +244,6 @@ class ActionManager:
         self.actions[action_name] = module.action_object
         self.actions_configs[action_name] = act
 
-
     def install_actions(self):
         # install default actions
         self.actions["set_vars"] = action_set_global_vars
@@ -261,8 +253,9 @@ class ActionManager:
         # install predefined actions
         this_file = pathlib.Path(__file__)
         predefined_actions_dir = this_file.parent / "actions"
-        self.log.debug("Loading predefined actions from '{}'"
-                        .format(predefined_actions_dir))
+        self.log.debug(
+            "Loading predefined actions from '{}'".format(predefined_actions_dir)
+        )
         self.load_actions_from_dir(predefined_actions_dir)
 
         # install actions from action_dir sections
@@ -284,13 +277,13 @@ class ActionManager:
                 try:
                     action_object.initialise(conf_object)
                 except Exception as xcp:
-                    self.log.error("Could not initialise action '{}'\n{}"
-                                    .format(actname, xcp))
+                    self.log.error(
+                        "Could not initialise action '{}'\n{}".format(actname, xcp)
+                    )
                     fails.append(actname)
 
         for actname in fails:
             self.actions[actname] = noaction
-
 
     def run(self, name, arglst, url, content, variables=None, log=None):
         """
@@ -308,15 +301,14 @@ class ActionManager:
 
         return action(name, arglst, url, content, variables, log)
 
-
     def process(self, minderlst, webchecker):
         """
         For each object in minderlst, check the url and run the actions
         """
         for obj in minderlst:
-            self.variables.push()   # create a new scope
+            self.variables.push()  # create a new scope
             Monitor(obj, self.variables, log=self.log).run(webchecker, self)
-            self.variables.pop()   # lose the variables created by the action
+            self.variables.pop()  # lose the variables created by the action
 
 
 # default actions
@@ -325,16 +317,17 @@ def action_set_global_vars(name, arglst, url, content, variables, log):
         log.debug("{}: setting '{}' to {}".format(name, key, val))
         variables.set_global(key, val)
 
+
 def action_list_vars(name, arglst, url, content, variables, log):
     log.debug("{}:".format(name))
     for var, value in variables.items():
         log.debug("\t{} = '{}'".format(var, value))
 
+
 def noaction(name, arglst, url, content, variables, log):
     log.info("NO ACTION {} for url '{}'".format(name, url))
     log.debug("Arglst: {}".format(arglst))
     return {}
-
 
 
 def load_config(config_file):
@@ -347,21 +340,15 @@ def load_config(config_file):
         with config_file.open() as fd:
             config = yaml.load(fd.read(), Loader=yaml.Loader)
     else:
-        print("Not a valid configuration file: '{}'"
-                        .format(config_file), file=sys.stderr)
+        print(
+            "Not a valid configuration file: '{}'".format(config_file), file=sys.stderr
+        )
         config = {}
     return config
 
 
 def logging_setup(config):
-    cfg = {
-        "version": 1,
-        "loggers": {
-            LOGGER: {
-                "level": "DEBUG",
-                },
-            },
-    }
+    cfg = {"version": 1, "loggers": {LOGGER: {"level": "DEBUG"}}}
     cfg.update(config.get("logging_config", {}))
 
     try:
@@ -375,14 +362,25 @@ def logging_setup(config):
     return log
 
 
-
 def parse_cli_args(argv):
     p = argparse.ArgumentParser()
-    p.add_argument("--config", "-c", metavar="FILE", default=None,
-            help="Configuration file.")
-    p.add_argument("--persist-file", "-p", metavar="FILE", default=PERSISTENCE_FILE,
-            help="Persistence file to store URL status. Default " +
-                    PERSISTENCE_FILE)
+    p.add_argument(
+        "--config", "-c", metavar="FILE", default=None, help="Configuration file."
+    )
+    p.add_argument(
+        "--persist-file",
+        "-p",
+        metavar="FILE",
+        default=PERSISTENCE_FILE,
+        help="Persistence file to store URL status. Default " + PERSISTENCE_FILE,
+    )
+    p.add_argument(
+        "--version",
+        "-v",
+        default=False,
+        action="store_true",
+        help="show program version and exit",
+    )
     p.add_argument("ymlfile", nargs="*", help="Url check specification.")
     return p.parse_args(argv)
 
@@ -392,6 +390,10 @@ def main(argv=None):
         argv = sys.argv[1:]
 
     opts = parse_cli_args(argv)
+    if opts.version:
+        print(VERSION)
+        return 0
+
     config = load_config(opts.config)
 
     log = logging_setup(config)

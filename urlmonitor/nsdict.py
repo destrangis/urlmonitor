@@ -1,6 +1,7 @@
 import os
 
-class NSDict():
+
+class NSDict:
     """
     Dictionary with scopes.
 
@@ -18,10 +19,10 @@ class NSDict():
 
     """
 
-    def __init__(self, mapping = None, with_environment = True):
+    def __init__(self, mapping=None, with_environment=True):
         self.mappings = []
         if mapping is not None:
-            self.mappings = [ mapping ]
+            self.mappings = [mapping]
         self.with_environment = with_environment
 
     def push(self, mapping=None):
@@ -88,18 +89,18 @@ class NSDict():
     def __str__(self):
         s = self.__class__.__name__ + "({"
         for k, v in self.items():
-            s += repr(k) +": " + repr(v) + ", "
+            s += repr(k) + ": " + repr(v) + ", "
         s += "})"
         return s
 
     def __repr__(self):
-        s = self.__class__.__name__ + "({})".format("with_environment=False"
-                                            if not self.with_environment
-                                            else "")
+        s = self.__class__.__name__ + "({})".format(
+            "with_environment=False" if not self.with_environment else ""
+        )
         for mapping in self.mappings:
             s += ".push({"
             for k, v in mapping.items():
-                s += repr(k) +": " + repr(v) + ", "
+                s += repr(k) + ": " + repr(v) + ", "
             s += "})"
         return s
 

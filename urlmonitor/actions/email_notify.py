@@ -27,17 +27,24 @@ The UrlMonitor Bot
 BTW Do not reply to this message -- it will not compute.
 """
 
+
 class _EmailAction(Action):
 
-    check_cfg_vars = [ "smtp_server", "from_address", "smtp_encryption",
-            "smtp_user", "smtp_password", "smtp_port"]
+    check_cfg_vars = [
+        "smtp_server",
+        "from_address",
+        "smtp_encryption",
+        "smtp_user",
+        "smtp_password",
+        "smtp_port",
+    ]
     default_vars = {
         "from_address": "urlmonitor@{}".format(_NODE),
         "smtp_encryption": "",
         "smtp_user": "",
         "smtp_password": "",
         "smtp_port": 0,
-        }
+    }
 
     def make_message(self, fromaddr, toaddr, subject, text):
         msg = EmailMessage()
@@ -46,7 +53,6 @@ class _EmailAction(Action):
         msg["Subject"] = subject
         msg.set_content(text)
         return msg
-
 
     def send_msg(self, server, fromaddr, toaddr, msg):
         if self.smtp_port == 0:
@@ -71,7 +77,6 @@ class _EmailAction(Action):
                 srv.login(self.smtp_user, passwd)
             srv.send_message(msg)
 
-
     def __call__(self, name, arglst, url, content, variables, log):
         hostname = _NODE
         fromaddr = "UrlMonitor Bot <noreply@destrangis.com>"
@@ -82,7 +87,6 @@ class _EmailAction(Action):
             self.send_msg(self.smtp_server, fromaddr, arglst, msg)
         except smtplib.SMTPException as exc:
             log.error("{}: {}".format(name, exc))
-
 
 
 action_object = _EmailAction()
