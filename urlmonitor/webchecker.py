@@ -69,7 +69,7 @@ class WebChecker:
         }
 
         changed = chks != checksum
-        if chks:
+        if chks is not None:
             csr.execute(
                 """update urlvisited set
                                 checksum = ?,
